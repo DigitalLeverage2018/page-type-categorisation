@@ -17,7 +17,7 @@ client = openai.OpenAI(api_key=api_key)
 
 # --- UI: URL-Eingabe ---
 st.title("🔍 Seitentyp-Kategorisierung")
-input_mode = st.radio("📅 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
+input_mode = st.radio("📅 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
 
 urls = []
 
@@ -25,11 +25,40 @@ if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
     if input_text:
         urls = [url.strip() for url in input_text.splitlines() if url.strip()]
-elif input_mode == "CSV hochladen":
+elelif input_mode == "CSV hochladen":
     file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
     if file:
         df = pd.read_csv(file)
         urls = df.iloc[1:, 0].dropna().tolist()
+elif input_mode == "Sitemap URL":
+    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
+
+    def get_urls_from_sitemap(url):
+        collected_urls = []
+        try:
+            res = requests.get(url, timeout=10)
+            res.raise_for_status()
+            xml = res.content.decode("utf-8")
+            if "<sitemapindex" in xml:
+                matches = re.findall(r"<loc>(.*?)</loc>", xml)
+                for sm in matches:
+                    collected_urls.extend(get_urls_from_sitemap(sm))
+            else:
+                collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
+        except Exception as e:
+            st.error(f"Fehler beim Abrufen der Sitemap: {e}")
+        return collected_urls
+
+    if sitemap_url:
+        urls = get_urls_from_sitemap(sitemap_url)
+        if exclude_dirs:
+            excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
+            urls = [u for u in urls if not any(x in u for x in excludes)]
+        if include_dirs:
+            includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
+            urls = [u for u in urls if any(x in u for x in includes)]
 
 if not urls:
     st.stop()
@@ -171,28 +200,28 @@ status_text = st.empty()
 total = len(urls)
 
 for i, url in enumerate(urls):
-    status_text.text(f"🔍 Analysiere URL {i+1} von {total}: {url}")
     try:
-        html, final_url = fetch_html(url)
-        data = extract_structured_data(html, final_url)
-        typ = classify_by_markup(data) or classify_by_url(final_url)
+        status_text.text(f"🔍 Analysiere URL {i+1} von {total}:")
+        try:
+            html, final_url = fetch_html(url)
+            data = extract_structured_data(html, final_url)
+            typ = classify_by_markup(data) or classify_by_url(final_url)
 
-        title, desc = extract_meta(html)
-        body = extract_main_text(html)
+            title, desc = extract_meta(html)
+            body = extract_main_text(html)
 
-        if not typ:
-            typ = gpt_classify(final_url, title, desc, body, data)
+            if not typ:
+                typ = gpt_classify(final_url, title, desc, body, data)
 
-        if typ in CONTENT_RELEVANT_TYPES:
-            subtype = gpt_classify_subtype(final_url, title, desc, body)
-        else:
-            subtype = ""
+            if typ in CONTENT_RELEVANT_TYPES:
+                subtype = gpt_classify_subtype(final_url, title, desc, body)
+            else:
+                subtype = ""
 
-        results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
+            results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
 
-    except Exception as e:
-        results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
-
+        except Exception as e:
+            results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
 
 # --- Ergebnis anzeigen ---
 df = pd.DataFrame(results)
@@ -201,6 +230,7 @@ st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+
 
 
 
