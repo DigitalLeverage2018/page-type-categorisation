@@ -81,7 +81,90 @@ if not st.session_state.start_analysis or not st.session_state.urls:
 
 urls = st.session_state.urls
 
-# --- Hauptkategorien (Ebene 1) ---
+# --- Analyse ---
+def fetch_html(url):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=15)
+    response.raise_for_status()
+    return response.text, response.url
+
+def extract_structured_data(html, base_url):
+    return extruct.extract(html, base_url=base_url, syntaxes=["json-ld", "microdata", "rdfa"], uniform=True)
+
+def extract_meta(html):
+    soup = BeautifulSoup(html, "html.parser")
+    title = soup.title.string.strip() if soup.title else ""
+    desc_tag = soup.find("meta", attrs={"name": "description"})
+    description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else ""
+    return title, description
+
+def extract_main_text(html):
+    result = trafilatura.extract(html, include_comments=False, include_tables=False)
+    return result.strip()[:1000] if result else ""
+
+def classify_by_url(url):
+    url = url.lower()
+    for typ, patterns in HAUPTTYP_REGEX.items():
+        for pattern in patterns:
+            if re.search(pattern, url):
+                return typ
+    return None
+
+def classify_by_markup(data):
+    types = []
+    for syntax in data.values():
+        for item in syntax:
+            if "@type" in item:
+                t = item["@type"]
+                types.extend(t if isinstance(t, list) else [t])
+    for t in types:
+        if t in MARKUP_TYPE_TO_SEITENTYP:
+            return MARKUP_TYPE_TO_SEITENTYP[t]
+    return None
+
+def gpt_classify(url, title, desc, body, data):
+    user_input = f"""
+URL: {url}
+Title: {title}
+Description: {desc}
+Strukturierte Daten: {json.dumps(data)}
+Body (Auszug): {body}
+"""
+    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, Sonstige Kategorie, Serviceseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
+def gpt_classify_subtype(url, title, desc, body):
+    user_input = f"""
+URL: {url}
+Title: {title}
+Description: {desc}
+Body (Auszug): {body}
+"""
+    system_prompt = """
+Bitte bestimme die zutreffende Unterkategorie aus dieser Liste und gib **nur die Unterkategorie als Antwort** zurück:
+
+PLC-Pain Points, PLC-Kosten, PLC-How-Tos, PLC-Tools & Templates, PLC-Buyer’s Guides, PLC-Alternativen, PLC-Vergleiche, PLC-Listicles, PLC-Case Studies, PLC-Checklisten,
+TLC-Opinion Piece, TLC-Industry Insight, TLC-Expert Voice, TLC-Personal Story, TLC-Data Insight, TLC-Essay,
+Pressemitteilung, News & Updates, Glossarartikel, Sonstige, Unklar
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
+# --- Klassifizierungsregeln ---
 MARKUP_TYPE_TO_SEITENTYP = {
     "Recipe": "Rezeptdetailseite", "Product": "Produktdetailseite",
     "NewsArticle": "Newsbeitrag", "BlogPosting": "Blog/Artikel", "Article": "Blog/Artikel",
@@ -95,7 +178,7 @@ HAUPTTYP_REGEX = {
     "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/"],
     "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/"],
     "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/"],
-    "Service kategorie": [r"/dienstleistungen?/, r"/services?/"],
+    "Service kategorie": [r"/dienstleistungen?/", r"/services?/"],
     "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search"],
     "Produktdetailseite": [r"/produkt[e]?[-/]?\w+"],
     "Rezeptdetailseite": [r"/rezept[-/]?\w+"],
@@ -119,15 +202,15 @@ CONTENT_RELEVANT_TYPES = [
     "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
-# (Restlicher Code bleibt gleich...)
+
 # --- Analyse starten ---
 results = []
 status_text = st.empty()
 total = len(urls)
 
 for i, url in enumerate(urls):
-    status_text.text(f"\U0001F50D Analysiere URL {i+1} von {total}: {url}")
     try:
+        status_text.text(f"🔍 Analysiere URL {i+1} von {total}: {url}")
         html, final_url = fetch_html(url)
         data = extract_structured_data(html, final_url)
         typ = classify_by_markup(data) or classify_by_url(final_url)
@@ -154,4 +237,4 @@ st.success("✅ Analyse abgeschlossen")
 st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("\U0001F4C5 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
