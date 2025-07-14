@@ -17,7 +17,7 @@ client = openai.OpenAI(api_key=api_key)
 
 # --- UI: URL-Eingabe ---
 st.title("🔍 Seitentyp-Kategorisierung")
-input_mode = st.radio("📥 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
+input_mode = st.radio("📅 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
 
 urls = []
 
@@ -34,32 +34,44 @@ elif input_mode == "CSV hochladen":
 if not urls:
     st.stop()
 
-# --- Typ-Zuordnungen ---
+# --- Hauptkategorien (Ebene 1) ---
 MARKUP_TYPE_TO_SEITENTYP = {
-    "Recipe": "Rezeptseite", "Product": "Produktdetailseite",
-    "NewsArticle": "Blog/Artikel", "BlogPosting": "Blog/Artikel", "Article": "Blog/Artikel",
+    "Recipe": "Rezeptdetailseite", "Product": "Produktdetailseite",
+    "NewsArticle": "Newsbeitrag", "BlogPosting": "Blog/Artikel", "Article": "Blog/Artikel",
     "FAQPage": "Blog/Artikel", "HowTo": "Blog/Artikel", "Event": "Eventseite",
     "JobPosting": "Stellenanzeige", "SearchResultsPage": "Suchergebnisseite",
     "CollectionPage": "Kategorieseite", "ContactPage": "Kontaktseite"
 }
 
-URL_PATTERNS = {
-    "Rezeptseite": ["rezepte", "rezept", "recettes", "recipe"],
-    "Produktdetailseite": ["produkt", "produit", "product", "angebote"],
-    "Kategorieseite": ["kategorie", "category", "produkte", "shop"],
-    "Suchergebnisseite": ["suche", "search", "s=", "q=", "query"],
-    "Stellenanzeige": ["job", "stelle", "emploi", "career"],
-    "Kontaktseite": ["kontakt", "contact", "hilfe"],
-    "Eventseite": ["event", "veranstaltung", "webinar"],
-    "Teamseite": ["team"],
-    "Karriereübersicht": ["karriere", "career-overview"],
-    "Glossarseite": ["glossar", "lexikon", "glossary"],
-    "Newsletter-Landingpage": ["newsletter"],
-    "Downloadseite / Whitepaper": ["whitepaper", "downloads", "ebook"],
-    "Über uns": ["ueber-uns", "about-us"],
-    "Standortseite / Filialseite": ["standort", "filiale", "location"],
-    "Blog/Artikel": ["blog", "artikel", "ratgeber", "faq", "wissen"]
+HAUPTTYP_REGEX = {
+    "Homepage": [r"^https?:\/\/[^\/]+\/?$", r"^https?:\/\/[^\/]+\/[a-z]{2,3}\/?$"],
+    "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/", r"/cat[eé]gories?/", r"/produkte[n]?/", r"/products?/", r"/produits?/"],
+    "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/", r"/product[-_]?categories?/", r"/cat[eé]gorie[-_]?produit[s]?"],
+    "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/", r"/recette[s]?[-_]?cat[eé]gorie[s]?/"],
+    "Service kategorie": [r"/dienstleistungen?/", r"/services?/", r"/prestations?[-_]?de?[-_]?service/"],
+    "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search", r"/recherche"],
+    "Produktdetailseite": [r"/produkt[e]?[-/]?\w+", r"/product[-/]?\w+", r"/produit[-/]?\w+"],
+    "Rezeptdetailseite": [r"/rezept[-/]?\w+", r"/recette[-/]?\w+"],
+    "Serviceseite": [r"/service[-/]?\w+", r"/dienstleistung[-/]?\w+", r"/prestation[-/]?\w+"],
+    "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/", r"/emplois?/", r"/karriere/"],
+    "Kontaktseite": [r"/kontakt", r"/contact", r"/nous[-_]?contacter", r"/contactez[-_]?nous"],
+    "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/", r"/\u00e9v\u00e9nements?/"],
+    "Teamseite": [r"/team", r"/ueber-uns/team", r"/equipe"],
+    "Karriereseite": [r"/karriere", r"/careers?", r"/emplois?[-_]?chez[-_]?nous"],
+    "Glossarseite": [r"/glossar", r"/lexikon", r"/glossaire", r"/glossary"],
+    "Newsletter": [r"/newsletter", r"/newsletters", r"/lettre[-_]?d[-_]?information"],
+    "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/\u00e0[-_]?propos"],
+    "Standort": [r"/standort", r"/filiale", r"/location[s]?", r"/magasin"],
+    "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions", r"/conditions[-_]?g[eé]n[eé]rales"],
+    "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber", r"/faq", r"/wissen", r"/conseils", r"/article", r"/magazine"],
+    "Newsbeitrag": [r"/news", r"/neuigkeiten", r"/actualit[eé]s", r"/press(e|room)"],
+    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/", r"/dossiers?/", r"/welten/"]
 }
+
+CONTENT_RELEVANT_TYPES = [
+    "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
+    "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
+]
 
 def is_homepage(url):
     path = re.sub(r'^https?:\/\/[^\/]+', '', url).strip().lower()
@@ -88,11 +100,10 @@ def classify_by_markup(data):
 
 def classify_by_url(url):
     url = url.lower()
-    if is_homepage(url):
-        return "Startseite"
-    for typ, patterns in URL_PATTERNS.items():
-        if any(p in url for p in patterns):
-            return typ
+    for typ, patterns in HAUPTTYP_REGEX.items():
+        for pattern in patterns:
+            if re.search(pattern, url):
+                return typ
     return None
 
 def extract_meta(html):
@@ -114,7 +125,7 @@ Description: {desc}
 Strukturierte Daten: {json.dumps(data)}
 Body (Auszug): {body}
 """
-    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Startseite, Sprachstartseite, Blog/Artikel, Glossarseite, Produktdetailseite, Kategorieseite, Rezeptseite, Eventseite, Stellenanzeige, Karriereübersicht, Über uns, Kontaktseite, Teamseite, Standortseite / Filialseite, Downloadseite / Whitepaper, Newsletter-Landingpage, 404 / Fehlerseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
+    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, sonstige kategorie, Serviceseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -149,4 +160,5 @@ st.success("✅ Analyse abgeschlossen")
 st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("📥 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+
