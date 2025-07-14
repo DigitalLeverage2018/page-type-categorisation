@@ -9,7 +9,7 @@ import json
 import re
 
 # --- OpenAI Key ---
-api_key = st.text_input("\U0001F511 OpenAI API Key", type="password")
+api_key = st.text_input("🔑 OpenAI API Key", type="password")
 if not api_key:
     st.warning("Bitte gib deinen OpenAI API Key ein.")
     st.stop()
@@ -22,42 +22,25 @@ if "start_analysis" not in st.session_state:
     st.session_state.start_analysis = False
 
 # --- UI: URL-Eingabe ---
-st.title("\U0001F50D Seitentyp-Kategorisierung")
-input_mode = st.radio("\U0001F4C5 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
+st.title("🔍 Seitentyp-Kategorisierung")
+input_mode = st.radio("📅 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
 
 if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
     if input_text:
         st.session_state.urls = [url.strip() for url in input_text.splitlines() if url.strip()]
-    if st.button("\U0001F680 Analyse starten"):
+    if st.button("🚀 Analyse starten"):
         st.session_state.start_analysis = True
 
 elif input_mode == "CSV hochladen":
-    file = st.file_uploader("\U0001F4C4 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
+    file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
     if file:
         df = pd.read_csv(file)
         st.session_state.urls = df.iloc[1:, 0].dropna().tolist()
-    if st.button("\U0001F680 Analyse starten"):
+    if st.button("🚀 Analyse starten"):
         st.session_state.start_analysis = True
 
 elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
-    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
-
-    import xml.etree.ElementTree as ET
-
-elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
-    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
-
-    elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
-    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
-
-    elif input_mode == "Sitemap URL":
     sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
     exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
     include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
@@ -92,8 +75,6 @@ elif input_mode == "Sitemap URL":
         else:
             st.warning("Bitte gib eine gültige Sitemap-URL ein.")
 
-
-
 # --- Stopp, wenn Analyse nicht gestartet ---
 if not st.session_state.start_analysis or not st.session_state.urls:
     st.stop()
@@ -110,15 +91,15 @@ MARKUP_TYPE_TO_SEITENTYP = {
 }
 
 HAUPTTYP_REGEX = {
-    "Homepage": [r"^https?:\\/\\/[^\\/]+\\/?$", r"^https?:\\/\\/[^\\/]+\\/[a-z]{2,3}\\/?$"],
+    "Homepage": [r"^https?:\/\/[^\/]+\/?$", r"^https?:\/\/[^\/]+\/[a-z]{2,3}\/?$"],
     "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/"],
     "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/"],
     "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/"],
-    "Service kategorie": [r"/dienstleistungen?/", r"/services?/"],
+    "Service kategorie": [r"/dienstleistungen?/, r"/services?/"],
     "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search"],
-    "Produktdetailseite": [r"/produkt[e]?[-/]?\\w+"],
-    "Rezeptdetailseite": [r"/rezept[-/]?\\w+"],
-    "Serviceseite": [r"/service[-/]?\\w+", r"/dienstleistung[-/]?\\w+"],
+    "Produktdetailseite": [r"/produkt[e]?[-/]?\w+"],
+    "Rezeptdetailseite": [r"/rezept[-/]?\w+"],
+    "Serviceseite": [r"/service[-/]?\w+", r"/dienstleistung[-/]?\w+"],
     "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/"],
     "Kontaktseite": [r"/kontakt", r"/contact"],
     "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/"],
@@ -138,7 +119,6 @@ CONTENT_RELEVANT_TYPES = [
     "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
-
 # (Restlicher Code bleibt gleich...)
 # --- Analyse starten ---
 results = []
