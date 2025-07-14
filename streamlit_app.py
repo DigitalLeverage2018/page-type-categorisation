@@ -25,7 +25,7 @@ if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
     if input_text:
         urls = [url.strip() for url in input_text.splitlines() if url.strip()]
-elelif input_mode == "CSV hochladen":
+elif input_mode == "CSV hochladen":
     file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
     if file:
         df = pd.read_csv(file)
