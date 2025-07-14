@@ -60,7 +60,7 @@ HAUPTTYP_REGEX = {
     "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/"],
     "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/"],
     "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/"],
-    "Service kategorie": [r"/dienstleistungen?/", r"/services?/"],
+    "Service kategorie": [r"/dienstleistungen?/,", r"/services?/"],
     "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search"],
     "Produktdetailseite": [r"/produkt[e]?[-/]?\w+"],
     "Rezeptdetailseite": [r"/rezept[-/]?\w+"],
@@ -77,7 +77,9 @@ HAUPTTYP_REGEX = {
     "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions"],
     "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber"],
     "Newsbeitrag": [r"/news", r"/neuigkeiten"],
-    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/"]
+    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/"],
+    "Datenschutz": [r"/datenschutz", r"/privacy[-_]?policy", r"/rechtliches", r"/data[-_]?protection"],
+    "Case Study": [r"/case[-_]?studies?", r"/cases?", r"/referenzen?/"]
 }
 
 CONTENT_RELEVANT_TYPES = [
@@ -206,4 +208,5 @@ st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("📥 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+
 
