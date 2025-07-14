@@ -34,6 +34,10 @@ elif input_mode == "CSV hochladen":
 if not urls:
     st.stop()
 
+# --- Button zum Starten der Analyse ---
+if not st.button("🚀 Analyse starten"):
+    st.stop()
+
 # --- Hauptkategorien (Ebene 1) ---
 MARKUP_TYPE_TO_SEITENTYP = {
     "Recipe": "Rezeptdetailseite", "Product": "Produktdetailseite",
@@ -193,4 +197,3 @@ st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
-
