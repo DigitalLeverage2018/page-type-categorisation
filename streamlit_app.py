@@ -1,75 +1,64 @@
 import streamlit as st
 import pandas as pd
-import openai
 import requests
+import openai
 import extruct
 import trafilatura
 from bs4 import BeautifulSoup
-import re
 import json
+import re
 
-# -------------------------
-# UI-Elemente
-# -------------------------
-st.title("🔍 Seitentyp-Kategorisierung")
-
+# --- OpenAI Key ---
 api_key = st.text_input("🔑 OpenAI API Key", type="password")
 if not api_key:
     st.warning("Bitte gib deinen OpenAI API Key ein.")
     st.stop()
-openai.api_key = api_key
+client = openai.OpenAI(api_key=api_key)
 
-input_mode = st.radio("📥 URLs eingeben oder Datei hochladen?", ["Manuelle Eingabe", "CSV-Datei"])
+# --- UI: URL-Eingabe ---
+st.title("🔍 Seitentyp-Kategorisierung")
+input_mode = st.radio("📥 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
 
 urls = []
 
-if input_mode == "Manuelle Eingabe":
-    input_urls = st.text_area("📄 Füge hier die URLs ein (eine pro Zeile):")
-    if input_urls.strip():
-        urls = [url.strip() for url in input_urls.strip().splitlines() if url.strip()]
-elif input_mode == "CSV-Datei":
-    uploaded_file = st.file_uploader("📄 Lade eine CSV-Datei mit URLs hoch (Spalte A ab A2)", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        urls = df.iloc[1:, 0].dropna().tolist()  # Ab Zeile 2, Spalte A
+if input_mode == "Manuell eingeben":
+    input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
+    if input_text:
+        urls = [url.strip() for url in input_text.splitlines() if url.strip()]
+elif input_mode == "CSV hochladen":
+    file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
+    if file:
+        df = pd.read_csv(file)
+        urls = df.iloc[1:, 0].dropna().tolist()
 
 if not urls:
     st.stop()
 
-# -------------------------
-# Mapping strukturierter Daten & URL-Muster
-# -------------------------
+# --- Typ-Zuordnungen ---
 MARKUP_TYPE_TO_SEITENTYP = {
-    "Recipe": "Rezeptseite",
-    "Product": "Produktdetailseite",
-    "NewsArticle": "Blog/Artikel",
-    "BlogPosting": "Blog/Artikel",
-    "Article": "Blog/Artikel",
-    "FAQPage": "Blog/Artikel",
-    "HowTo": "Blog/Artikel",
-    "Event": "Eventseite",
-    "JobPosting": "Stellenanzeige",
-    "SearchResultsPage": "Suchergebnisseite",
-    "CollectionPage": "Kategorieseite",
-    "ContactPage": "Kontaktseite"
+    "Recipe": "Rezeptseite", "Product": "Produktdetailseite",
+    "NewsArticle": "Blog/Artikel", "BlogPosting": "Blog/Artikel", "Article": "Blog/Artikel",
+    "FAQPage": "Blog/Artikel", "HowTo": "Blog/Artikel", "Event": "Eventseite",
+    "JobPosting": "Stellenanzeige", "SearchResultsPage": "Suchergebnisseite",
+    "CollectionPage": "Kategorieseite", "ContactPage": "Kontaktseite"
 }
 
 URL_PATTERNS = {
-    "Rezeptseite": ["rezepte", "rezept", "recettes", "recette", "recipes", "recipe"],
-    "Produktdetailseite": ["produkt", "produit", "product", "item", "angebote", "offers"],
-    "Kategorieseite": ["kategorie", "categorie", "category", "produkte", "produits", "shop", "boutique", "magasin"],
-    "Suchergebnisseite": ["suche", "recherche", "search", "s=", "q=", "query"],
-    "Stellenanzeige": ["job", "stelle", "emploi", "poste", "career", "position"],
-    "Kontaktseite": ["kontakt", "contact", "support", "hilfe", "aide", "assistance"],
-    "Eventseite": ["event", "veranstaltung", "evenement", "manifestation", "webinar", "kalender", "calendrier"],
+    "Rezeptseite": ["rezepte", "rezept", "recettes", "recipe"],
+    "Produktdetailseite": ["produkt", "produit", "product", "angebote"],
+    "Kategorieseite": ["kategorie", "category", "produkte", "shop"],
+    "Suchergebnisseite": ["suche", "search", "s=", "q=", "query"],
+    "Stellenanzeige": ["job", "stelle", "emploi", "career"],
+    "Kontaktseite": ["kontakt", "contact", "hilfe"],
+    "Eventseite": ["event", "veranstaltung", "webinar"],
     "Teamseite": ["team"],
-    "Karriereübersicht": ["karriere", "career-overview", "carriere"],
+    "Karriereübersicht": ["karriere", "career-overview"],
     "Glossarseite": ["glossar", "lexikon", "glossary"],
     "Newsletter-Landingpage": ["newsletter"],
     "Downloadseite / Whitepaper": ["whitepaper", "downloads", "ebook"],
-    "Über uns": ["ueber-uns", "about-us", "a-propos"],
-    "Standortseite / Filialseite": ["standort", "filiale", "location", "store-locator"],
-    "Blog/Artikel": ["blog", "artikel", "article", "ratgeber", "guide", "tips", "conseils", "faq", "how-to", "wissen", "news", "actualites", "updates"]
+    "Über uns": ["ueber-uns", "about-us"],
+    "Standortseite / Filialseite": ["standort", "filiale", "location"],
+    "Blog/Artikel": ["blog", "artikel", "ratgeber", "faq", "wissen"]
 }
 
 def is_homepage(url):
@@ -101,14 +90,10 @@ def classify_by_url(url):
     url = url.lower()
     if is_homepage(url):
         return "Startseite"
-    for seitentyp, patterns in URL_PATTERNS.items():
+    for typ, patterns in URL_PATTERNS.items():
         if any(p in url for p in patterns):
-            return seitentyp
+            return typ
     return None
-
-def extract_main_text(html):
-    result = trafilatura.extract(html, include_comments=False, include_tables=False)
-    return result.strip()[:1000] if result else ""
 
 def extract_meta(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -117,30 +102,32 @@ def extract_meta(html):
     description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else ""
     return title, description
 
-def gpt_classify(url, title, description, body_text, structured_data):
+def extract_main_text(html):
+    result = trafilatura.extract(html, include_comments=False, include_tables=False)
+    return result.strip()[:1000] if result else ""
+
+def gpt_classify(url, title, desc, body, data):
     user_input = f"""
 URL: {url}
 Title: {title}
-Description: {description}
-Strukturierte Daten: {json.dumps(structured_data)}
-Body (Auszug): {body_text}
+Description: {desc}
+Strukturierte Daten: {json.dumps(data)}
+Body (Auszug): {body}
 """
-    system_prompt = "Bitte bestimme anhand der folgenden Informationen, welcher dieser Seitentypen auf die Seite zutrifft. Wähle den **passendsten** aus dieser Liste und **verwende ihn exakt so, wie angegeben** (ohne Abwandlungen oder Varianten): Startseite, Sprachstartseite, Blog/Artikel, Glossarseite, Produktdetailseite, Kategorieseite, Rezeptseite, Eventseite, Stellenanzeige, Karriereübersicht, Über uns, Kontaktseite, Teamseite, Standortseite / Filialseite, Downloadseite / Whitepaper, Newsletter-Landingpage, 404 / Fehlerseite. Wenn **keiner dieser Typen auch nur annähernd passt**, darfst du **eine neue, sinnvolle Kategorie vorschlagen** – gib dann **nur die neue Kategorie als Antwort aus**."
+    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Startseite, Sprachstartseite, Blog/Artikel, Glossarseite, Produktdetailseite, Kategorieseite, Rezeptseite, Eventseite, Stellenanzeige, Karriereübersicht, Über uns, Kontaktseite, Teamseite, Standortseite / Filialseite, Downloadseite / Whitepaper, Newsletter-Landingpage, 404 / Fehlerseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input}
         ]
     )
-    return response.choices[0].message["content"].strip()
+    return response.choices[0].message.content.strip()
 
-# -------------------------
-# Analyse ausführen
-# -------------------------
+# --- Analyse starten ---
 results = []
-with st.spinner("🔍 URLs werden analysiert..."):
+with st.spinner("🔍 Analysiere Seiten..."):
     for url in urls:
         try:
             html, final_url = fetch_html(url)
@@ -156,12 +143,10 @@ with st.spinner("🔍 URLs werden analysiert..."):
         except Exception as e:
             results.append({"URL": url, "Seitentyp": f"Fehler: {e}"})
 
-# -------------------------
-# Ergebnis anzeigen & Download
-# -------------------------
-df_out = pd.DataFrame(results)
+# --- Ergebnis anzeigen ---
+df = pd.DataFrame(results)
 st.success("✅ Analyse abgeschlossen")
-st.dataframe(df_out)
+st.dataframe(df)
 
-csv = df_out.to_csv(index=False).encode("utf-8")
-st.download_button("📥 Ergebnisse als CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button("📥 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
