@@ -41,27 +41,27 @@ elif input_mode == "CSV hochladen":
         st.session_state.start_analysis = True
 
 elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("\U0001F310 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("\U0001F6D8 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
     include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
 
-    if st.button("\U0001F680 Analyse starten") and sitemap_url:
-        def get_urls_from_sitemap(url):
-            collected_urls = []
-            try:
-                res = requests.get(url, timeout=10)
-                res.raise_for_status()
-                xml = res.content.decode("utf-8")
-                if "<sitemapindex" in xml:
-                    matches = re.findall(r"<loc>(.*?)</loc>", xml)
-                    for sm in matches:
-                        collected_urls.extend(get_urls_from_sitemap(sm))
-                else:
-                    collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
-            except Exception as e:
-                st.error(f"Fehler beim Abrufen der Sitemap: {e}")
-            return collected_urls
+    def get_urls_from_sitemap(url):
+        collected_urls = []
+        try:
+            res = requests.get(url, timeout=10)
+            res.raise_for_status()
+            xml = res.content.decode("utf-8")
+            if "<sitemapindex" in xml:
+                matches = re.findall(r"<loc>(.*?)</loc>", xml)
+                for sm in matches:
+                    collected_urls.extend(get_urls_from_sitemap(sm))
+            else:
+                collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
+        except Exception as e:
+            st.error(f"Fehler beim Abrufen der Sitemap: {e}")
+        return collected_urls
 
+    if st.button("🔄 Sitemap laden") and sitemap_url:
         urls = get_urls_from_sitemap(sitemap_url)
         if exclude_dirs:
             excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
@@ -71,7 +71,12 @@ elif input_mode == "Sitemap URL":
             urls = [u for u in urls if any(x in u for x in includes)]
 
         st.session_state.urls = urls
-        st.session_state.start_analysis = True
+        st.success(f"{len(urls)} URLs erfolgreich geladen.")
+
+    if st.session_state.urls:
+        if st.button("🚀 Analyse starten"):
+            st.session_state.start_analysis = True
+
 
 # --- Stopp, wenn Analyse nicht gestartet ---
 if not st.session_state.start_analysis or not st.session_state.urls:
