@@ -1,6 +1,7 @@
+streamlit
 openai
-playwright
-beautifulsoup4
+pandas
+requests
 trafilatura
 extruct
-pandas
+beautifulsoup4
