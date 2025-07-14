@@ -60,11 +60,11 @@ HAUPTTYP_REGEX = {
     "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/"],
     "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/"],
     "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/"],
-    "Service kategorie": [r"/dienstleistungen?/,", r"/services?/"],
+    "Service kategorie": [r"/dienstleistungen?/", r"/services?/"],
     "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search"],
-    "Produktdetailseite": [r"/produkt[e]?[-/]?\w+"],
-    "Rezeptdetailseite": [r"/rezept[-/]?\w+"],
-    "Serviceseite": [r"/service[-/]?\w+", r"/dienstleistung[-/]?\w+"],
+    "Produktdetailseite": [r"/produkt[e]?[-/]?\\w+"],
+    "Rezeptdetailseite": [r"/rezept[-/]?\\w+"],
+    "Serviceseite": [r"/service[-/]?\\w+", r"/dienstleistung[-/]?\\w+"],
     "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/"],
     "Kontaktseite": [r"/kontakt", r"/contact"],
     "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/"],
@@ -75,11 +75,11 @@ HAUPTTYP_REGEX = {
     "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us"],
     "Standort": [r"/standort", r"/filiale", r"/location[s]?"],
     "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions"],
+    "Datenschutz": [r"/datenschutz", r"/privacy[-_]?policy", r"/rechtliches", r"/data[-_]?protection"],
+    "Case Study": [r"/case[-_]?studies?", r"/cases?", r"/referenzen?/"],
     "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber"],
     "Newsbeitrag": [r"/news", r"/neuigkeiten"],
-    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/"],
-    "Datenschutz": [r"/datenschutz", r"/privacy[-_]?policy", r"/rechtliches", r"/data[-_]?protection"],
-    "Case Study": [r"/case[-_]?studies?", r"/cases?", r"/referenzen?/"]
+    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/"]
 }
 
 CONTENT_RELEVANT_TYPES = [
@@ -159,7 +159,7 @@ Description: {desc}
 Strukturierte Daten: {json.dumps(data)}
 Body (Auszug): {body}
 """
-    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, sonstige Kategorie, Serviceseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
+    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, sonstige Kategorie, Serviceseite, Datenschutz, Case Study. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -208,5 +208,3 @@ st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("📥 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
-
-
