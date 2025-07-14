@@ -25,11 +25,13 @@ if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
     if input_text:
         urls = [url.strip() for url in input_text.splitlines() if url.strip()]
+
 elif input_mode == "CSV hochladen":
     file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
     if file:
         df = pd.read_csv(file)
         urls = df.iloc[1:, 0].dropna().tolist()
+
 elif input_mode == "Sitemap URL":
     sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
     exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
@@ -51,27 +53,19 @@ elif input_mode == "Sitemap URL":
             st.error(f"Fehler beim Abrufen der Sitemap: {e}")
         return collected_urls
 
-if sitemap_url:
-    raw_urls = get_urls_from_sitemap(sitemap_url)
-    excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
-    includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
-
-    if includes:
-        raw_urls = [u for u in raw_urls if any(x in u for x in includes)]
-    if excludes:
-        raw_urls = [u for u in raw_urls if not any(x in u for x in excludes)]
-
-    urls = raw_urls
-
-if urls:
-    if st.button("🚀 Analyse starten"):
-        # restlicher Analyse-Code beginnt hier (ab results = [])
-        ...
-else:
-    st.info("Bitte gib eine gültige Eingabe an, um URLs zu analysieren.")
-
+    if sitemap_url:
+        urls = get_urls_from_sitemap(sitemap_url)
+        if exclude_dirs:
+            excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
+            urls = [u for u in urls if not any(x in u for x in excludes)]
+        if include_dirs:
+            includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
+            urls = [u for u in urls if any(x in u for x in includes)]
 
 # --- Button zum Starten der Analyse ---
+if not urls:
+    st.stop()
+
 if not st.button("🚀 Analyse starten"):
     st.stop()
 
@@ -89,31 +83,30 @@ HAUPTTYP_REGEX = {
     "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/", r"/cat[eé]gories?/", r"/produkte[n]?/", r"/products?/", r"/produits?/"],
     "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/", r"/product[-_]?categories?/", r"/cat[eé]gorie[-_]?produit[s]?"],
     "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/", r"/recette[s]?[-_]?cat[eé]gorie[s]?/"],
-    "Service kategorie": [r"/dienstleistungen?/", r"/services?/", r"/prestations?[-_]?de?[-_]?service/"],
+    "Service kategorie": [r"/dienstleistungen?/,", r"/services?/", r"/prestations?[-_]?de?[-_]?service/"],
     "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search", r"/recherche"],
-    "Produktdetailseite": [r"/produkt[e]?[-/]?\w+", r"/product[-/]?\w+", r"/produit[-/]?\w+"],
-    "Rezeptdetailseite": [r"/rezept[-/]?\w+", r"/recette[-/]?\w+"],
-    "Serviceseite": [r"/service[-/]?\w+", r"/dienstleistung[-/]?\w+", r"/prestation[-/]?\w+"],
-    "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/", r"/emplois?/", r"/karriere/"],
+    "Produktdetailseite": [r"/produkt[e]?[-/]?\\w+", r"/product[-/]?\\w+", r"/produit[-/]?\\w+"],
+    "Rezeptdetailseite": [r"/rezept[-/]?\\w+", r"/recette[-/]?\\w+"],
+    "Serviceseite": [r"/service[-/]?\\w+", r"/dienstleistung[-/]?\\w+", r"/prestation[-/]?\\w+"],
+    "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/,", r"/emplois?/,", r"/karriere/"],
     "Kontaktseite": [r"/kontakt", r"/contact", r"/nous[-_]?contacter", r"/contactez[-_]?nous"],
-    "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/", r"/\u00e9v\u00e9nements?/"],
+    "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/", r"/événements?/"],
     "Teamseite": [r"/team", r"/ueber-uns/team", r"/equipe"],
     "Karriereseite": [r"/karriere", r"/careers?", r"/emplois?[-_]?chez[-_]?nous"],
     "Glossarseite": [r"/glossar", r"/lexikon", r"/glossaire", r"/glossary"],
     "Newsletter": [r"/newsletter", r"/newsletters", r"/lettre[-_]?d[-_]?information"],
-    "\u00dcber uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/\u00e0[-_]?propos"],
+    "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/à[-_]?propos"],
     "Standort": [r"/standort", r"/filiale", r"/location[s]?", r"/magasin"],
     "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions", r"/conditions[-_]?g[eé]n[eé]rales"],
     "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber", r"/faq", r"/wissen", r"/conseils", r"/article", r"/magazine"],
     "Newsbeitrag": [r"/news", r"/neuigkeiten", r"/actualit[eé]s", r"/press(e|room)"],
-    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/", r"/dossiers?/", r"/welten/"]
+    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/", r"/dossiers?/,", r"/welten/"]
 }
 
 CONTENT_RELEVANT_TYPES = [
     "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
-
 # GPT-Klassifikation für Ebene 2
 
 def gpt_classify_subtype(url, title, desc, body):
