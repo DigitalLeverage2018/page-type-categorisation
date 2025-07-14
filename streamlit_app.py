@@ -23,7 +23,7 @@ if "start_analysis" not in st.session_state:
 
 # --- UI: URL-Eingabe ---
 st.title("🔍 Seitentyp-Kategorisierung")
-input_mode = st.radio("📅 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
+input_mode = st.radio("📅 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
 
 if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
@@ -40,131 +40,13 @@ elif input_mode == "CSV hochladen":
     if st.button("🚀 Analyse starten"):
         st.session_state.start_analysis = True
 
-elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
-    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
-
-    def get_urls_from_sitemap(url):
-        collected_urls = []
-        try:
-            res = requests.get(url, timeout=10)
-            res.raise_for_status()
-            xml = res.content.decode("utf-8")
-            if "<sitemapindex" in xml:
-                matches = re.findall(r"<loc>(.*?)</loc>", xml)
-                for sm in matches:
-                    collected_urls.extend(get_urls_from_sitemap(sm))
-            else:
-                collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
-        except Exception as e:
-            st.error(f"Fehler beim Abrufen der Sitemap: {e}")
-        return collected_urls
-
-    if st.button("🚀 Analyse starten"):
-        if sitemap_url:
-            urls = get_urls_from_sitemap(sitemap_url)
-            if exclude_dirs:
-                excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
-                urls = [u for u in urls if not any(x in u for x in excludes)]
-            if include_dirs:
-                includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
-                urls = [u for u in urls if any(x in u for x in includes)]
-            st.session_state.urls = urls
-            st.session_state.start_analysis = True
-        else:
-            st.warning("Bitte gib eine gültige Sitemap-URL ein.")
-
 # --- Stopp, wenn Analyse nicht gestartet ---
 if not st.session_state.start_analysis or not st.session_state.urls:
     st.stop()
 
 urls = st.session_state.urls
 
-# --- Analyse ---
-def fetch_html(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers, timeout=15)
-    response.raise_for_status()
-    return response.text, response.url
-
-def extract_structured_data(html, base_url):
-    return extruct.extract(html, base_url=base_url, syntaxes=["json-ld", "microdata", "rdfa"], uniform=True)
-
-def extract_meta(html):
-    soup = BeautifulSoup(html, "html.parser")
-    title = soup.title.string.strip() if soup.title else ""
-    desc_tag = soup.find("meta", attrs={"name": "description"})
-    description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else ""
-    return title, description
-
-def extract_main_text(html):
-    result = trafilatura.extract(html, include_comments=False, include_tables=False)
-    return result.strip()[:1000] if result else ""
-
-def classify_by_url(url):
-    url = url.lower()
-    for typ, patterns in HAUPTTYP_REGEX.items():
-        for pattern in patterns:
-            if re.search(pattern, url):
-                return typ
-    return None
-
-def classify_by_markup(data):
-    types = []
-    for syntax in data.values():
-        for item in syntax:
-            if "@type" in item:
-                t = item["@type"]
-                types.extend(t if isinstance(t, list) else [t])
-    for t in types:
-        if t in MARKUP_TYPE_TO_SEITENTYP:
-            return MARKUP_TYPE_TO_SEITENTYP[t]
-    return None
-
-def gpt_classify(url, title, desc, body, data):
-    user_input = f"""
-URL: {url}
-Title: {title}
-Description: {desc}
-Strukturierte Daten: {json.dumps(data)}
-Body (Auszug): {body}
-"""
-    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, Sonstige Kategorie, Serviceseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input}
-        ]
-    )
-    return response.choices[0].message.content.strip()
-
-def gpt_classify_subtype(url, title, desc, body):
-    user_input = f"""
-URL: {url}
-Title: {title}
-Description: {desc}
-Body (Auszug): {body}
-"""
-    system_prompt = """
-Bitte bestimme die zutreffende Unterkategorie aus dieser Liste und gib **nur die Unterkategorie als Antwort** zurück:
-
-PLC-Pain Points, PLC-Kosten, PLC-How-Tos, PLC-Tools & Templates, PLC-Buyer’s Guides, PLC-Alternativen, PLC-Vergleiche, PLC-Listicles, PLC-Case Studies, PLC-Checklisten,
-TLC-Opinion Piece, TLC-Industry Insight, TLC-Expert Voice, TLC-Personal Story, TLC-Data Insight, TLC-Essay,
-Pressemitteilung, News & Updates, Glossarartikel, Sonstige, Unklar
-"""
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input}
-        ]
-    )
-    return response.choices[0].message.content.strip()
-
-# --- Klassifizierungsregeln ---
+# --- Hauptkategorien (Ebene 1) ---
 MARKUP_TYPE_TO_SEITENTYP = {
     "Recipe": "Rezeptdetailseite", "Product": "Produktdetailseite",
     "NewsArticle": "Newsbeitrag", "BlogPosting": "Blog/Artikel", "Article": "Blog/Artikel",
@@ -203,6 +85,89 @@ CONTENT_RELEVANT_TYPES = [
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
 
+# GPT-Klassifikation für Ebene 2
+def gpt_classify_subtype(url, title, desc, body):
+    user_input = f"""
+URL: {url}
+Title: {title}
+Description: {desc}
+Body (Auszug): {body}
+"""
+    system_prompt = """
+Bitte bestimme die zutreffende Unterkategorie aus dieser Liste und gib **nur die Unterkategorie als Antwort** zurück:
+
+PLC-Pain Points, PLC-Kosten, PLC-How-Tos, PLC-Tools & Templates, PLC-Buyer’s Guides, PLC-Alternativen, PLC-Vergleiche, PLC-Listicles, PLC-Case Studies, PLC-Checklisten,
+TLC-Opinion Piece, TLC-Industry Insight, TLC-Expert Voice, TLC-Personal Story, TLC-Data Insight, TLC-Essay,
+Pressemitteilung, News & Updates, Glossarartikel, Sonstige, Unklar
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
+def fetch_html(url):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    response = requests.get(url, headers=headers, timeout=15)
+    response.raise_for_status()
+    return response.text, response.url
+
+def extract_structured_data(html, base_url):
+    return extruct.extract(html, base_url=base_url, syntaxes=["json-ld", "microdata", "rdfa"], uniform=True)
+
+def classify_by_markup(data):
+    types = []
+    for syntax in data.values():
+        for item in syntax:
+            if "@type" in item:
+                t = item["@type"]
+                types.extend(t if isinstance(t, list) else [t])
+    for t in types:
+        if t in MARKUP_TYPE_TO_SEITENTYP:
+            return MARKUP_TYPE_TO_SEITENTYP[t]
+    return None
+
+def classify_by_url(url):
+    url = url.lower()
+    for typ, patterns in HAUPTTYP_REGEX.items():
+        for pattern in patterns:
+            if re.search(pattern, url):
+                return typ
+    return None
+
+def extract_meta(html):
+    soup = BeautifulSoup(html, "html.parser")
+    title = soup.title.string.strip() if soup.title else ""
+    desc_tag = soup.find("meta", attrs={"name": "description"})
+    description = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else ""
+    return title, description
+
+def extract_main_text(html):
+    result = trafilatura.extract(html, include_comments=False, include_tables=False)
+    return result.strip()[:1000] if result else ""
+
+def gpt_classify(url, title, desc, body, data):
+    user_input = f"""
+URL: {url}
+Title: {title}
+Description: {desc}
+Strukturierte Daten: {json.dumps(data)}
+Body (Auszug): {body}
+"""
+    system_prompt = "Bitte bestimme den zutreffendsten Seitentyp aus dieser Liste und gib **nur den Seitentyp als Antwort** zurück: Homepage, Kategorieseite, Suchergebnisseite, Stellenanzeige, Kontaktseite, Eventseite, AGB, Teamseite, Karriereseite, Glossarseite, Newsletter, Über uns, Standort, Blog/Artikel, Newsbeitrag, Produktdetailseite, Rezeptdetailseite, Produktkategorie, Rezeptkategorie, Service kategorie, sonstige kategorie, Serviceseite. Wenn keiner passt, darfst du eine neue sinnvolle Kategorie vorschlagen."
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+    )
+    return response.choices[0].message.content.strip()
+
 # --- Analyse starten ---
 results = []
 status_text = st.empty()
@@ -210,26 +175,31 @@ total = len(urls)
 
 for i, url in enumerate(urls):
     try:
-        status_text.text(f"🔍 Analysiere URL {i+1} von {total}: {url}")
-        html, final_url = fetch_html(url)
-        data = extract_structured_data(html, final_url)
-        typ = classify_by_markup(data) or classify_by_url(final_url)
+        status_text.text(f"🔍 Analysiere URL {i+1} von {total}:")
+        try:
+            html, final_url = fetch_html(url)
+            data = extract_structured_data(html, final_url)
+            typ = classify_by_markup(data) or classify_by_url(final_url)
 
-        title, desc = extract_meta(html)
-        body = extract_main_text(html)
+            title, desc = extract_meta(html)
+            body = extract_main_text(html)
 
-        if not typ:
-            typ = gpt_classify(final_url, title, desc, body, data)
+            if not typ:
+                typ = gpt_classify(final_url, title, desc, body, data)
 
-        if typ in CONTENT_RELEVANT_TYPES:
-            subtype = gpt_classify_subtype(final_url, title, desc, body)
-        else:
-            subtype = ""
+            if typ == "Produktdetailseite":
+                subtype = "PLC-Produktseite"
+            elif typ == "Serviceseite":
+                subtype = "PLC-Serviceseite"
+            elif typ in CONTENT_RELEVANT_TYPES:
+                subtype = gpt_classify_subtype(final_url, title, desc, body)
+            else:
+                subtype = ""
 
-        results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
+            results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
 
-    except Exception as e:
-        results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
+        except Exception as e:
+            results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
 
 # --- Ergebnis anzeigen ---
 df = pd.DataFrame(results)
