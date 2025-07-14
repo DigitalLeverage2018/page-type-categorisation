@@ -1,7 +1,8 @@
+openai>=1.0.0
 streamlit
-openai
-pandas
-requests
 trafilatura
-extruct
 beautifulsoup4
+extruct
+pandas
+lxml
+requests
