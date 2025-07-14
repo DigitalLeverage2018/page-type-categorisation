@@ -171,28 +171,28 @@ status_text = st.empty()
 total = len(urls)
 
 for i, url in enumerate(urls):
+    status_text.text(f"🔍 Analysiere URL {i+1} von {total}: {url}")
     try:
-        status_text.text(f"🔍 Analysiere URL {i+1} von {total}:")
-        try:
-            html, final_url = fetch_html(url)
-            data = extract_structured_data(html, final_url)
-            typ = classify_by_markup(data) or classify_by_url(final_url)
+        html, final_url = fetch_html(url)
+        data = extract_structured_data(html, final_url)
+        typ = classify_by_markup(data) or classify_by_url(final_url)
 
-            title, desc = extract_meta(html)
-            body = extract_main_text(html)
+        title, desc = extract_meta(html)
+        body = extract_main_text(html)
 
-            if not typ:
-                typ = gpt_classify(final_url, title, desc, body, data)
+        if not typ:
+            typ = gpt_classify(final_url, title, desc, body, data)
 
-            if typ in CONTENT_RELEVANT_TYPES:
-                subtype = gpt_classify_subtype(final_url, title, desc, body)
-            else:
-                subtype = ""
+        if typ in CONTENT_RELEVANT_TYPES:
+            subtype = gpt_classify_subtype(final_url, title, desc, body)
+        else:
+            subtype = ""
 
-            results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
+        results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
 
-        except Exception as e:
-            results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
+    except Exception as e:
+        results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
+
 
 # --- Ergebnis anzeigen ---
 df = pd.DataFrame(results)
