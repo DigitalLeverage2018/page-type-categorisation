@@ -52,23 +52,23 @@ elif input_mode == "Sitemap URL":
     exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
     include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
 
+    elif input_mode == "Sitemap URL":
+    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
+
     def get_urls_from_sitemap(url):
         collected_urls = []
         try:
             res = requests.get(url, timeout=10)
             res.raise_for_status()
-            root = ET.fromstring(res.content)
-            namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
-            if root.tag.endswith("sitemapindex"):
-                for sitemap in root.findall("ns:sitemap", namespace):
-                    loc = sitemap.find("ns:loc", namespace)
-                    if loc is not None and loc.text:
-                        collected_urls.extend(get_urls_from_sitemap(loc.text))
+            xml = res.content.decode("utf-8")
+            if "<sitemapindex" in xml:
+                matches = re.findall(r"<loc>(.*?)</loc>", xml)
+                for sm in matches:
+                    collected_urls.extend(get_urls_from_sitemap(sm))
             else:
-                for url_elem in root.findall("ns:url", namespace):
-                    loc = url_elem.find("ns:loc", namespace)
-                    if loc is not None and loc.text:
-                        collected_urls.append(loc.text)
+                collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
         except Exception as e:
             st.error(f"Fehler beim Abrufen der Sitemap: {e}")
         return collected_urls
@@ -86,6 +86,7 @@ elif input_mode == "Sitemap URL":
             st.session_state.start_analysis = True
         else:
             st.warning("Bitte gib eine gültige Sitemap-URL ein.")
+
 
 
 # --- Stopp, wenn Analyse nicht gestartet ---
