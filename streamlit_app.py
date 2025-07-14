@@ -9,51 +9,56 @@ import json
 import re
 
 # --- OpenAI Key ---
-api_key = st.text_input("🔑 OpenAI API Key", type="password")
+api_key = st.text_input("\U0001F511 OpenAI API Key", type="password")
 if not api_key:
     st.warning("Bitte gib deinen OpenAI API Key ein.")
     st.stop()
 client = openai.OpenAI(api_key=api_key)
 
 # --- UI: URL-Eingabe ---
-st.title("🔍 Seitentyp-Kategorisierung")
-input_mode = st.radio("📅 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
+st.title("\U0001F50D Seitentyp-Kategorisierung")
+input_mode = st.radio("\U0001F4C5 URLs eingeben, CSV oder Sitemap?", ["Manuell eingeben", "CSV hochladen", "Sitemap URL"])
 
 urls = []
+start_analysis = False
 
 if input_mode == "Manuell eingeben":
     input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
     if input_text:
         urls = [url.strip() for url in input_text.splitlines() if url.strip()]
+        if st.button("\U0001F680 Analyse starten"):
+            start_analysis = True
 
 elif input_mode == "CSV hochladen":
-    file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
+    file = st.file_uploader("\U0001F4C4 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
     if file:
         df = pd.read_csv(file)
         urls = df.iloc[1:, 0].dropna().tolist()
+        if st.button("\U0001F680 Analyse starten"):
+            start_analysis = True
 
 elif input_mode == "Sitemap URL":
-    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
-    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    sitemap_url = st.text_input("\U0001F310 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("\U0001F6D8 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
     include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
 
-    def get_urls_from_sitemap(url):
-        collected_urls = []
-        try:
-            res = requests.get(url, timeout=10)
-            res.raise_for_status()
-            xml = res.content.decode("utf-8")
-            if "<sitemapindex" in xml:
-                matches = re.findall(r"<loc>(.*?)</loc>", xml)
-                for sm in matches:
-                    collected_urls.extend(get_urls_from_sitemap(sm))
-            else:
-                collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
-        except Exception as e:
-            st.error(f"Fehler beim Abrufen der Sitemap: {e}")
-        return collected_urls
+    if sitemap_url and st.button("\U0001F680 Analyse starten"):
+        def get_urls_from_sitemap(url):
+            collected_urls = []
+            try:
+                res = requests.get(url, timeout=10)
+                res.raise_for_status()
+                xml = res.content.decode("utf-8")
+                if "<sitemapindex" in xml:
+                    matches = re.findall(r"<loc>(.*?)</loc>", xml)
+                    for sm in matches:
+                        collected_urls.extend(get_urls_from_sitemap(sm))
+                else:
+                    collected_urls.extend(re.findall(r"<loc>(.*?)</loc>", xml))
+            except Exception as e:
+                st.error(f"Fehler beim Abrufen der Sitemap: {e}")
+            return collected_urls
 
-    if sitemap_url:
         urls = get_urls_from_sitemap(sitemap_url)
         if exclude_dirs:
             excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
@@ -61,12 +66,9 @@ elif input_mode == "Sitemap URL":
         if include_dirs:
             includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
             urls = [u for u in urls if any(x in u for x in includes)]
+        start_analysis = True
 
-# --- Button zum Starten der Analyse ---
-if not urls:
-    st.stop()
-
-if not st.button("🚀 Analyse starten"):
+if not start_analysis:
     st.stop()
 
 # --- Hauptkategorien (Ebene 1) ---
@@ -80,33 +82,34 @@ MARKUP_TYPE_TO_SEITENTYP = {
 
 HAUPTTYP_REGEX = {
     "Homepage": [r"^https?:\/\/[^\/]+\/?$", r"^https?:\/\/[^\/]+\/[a-z]{2,3}\/?$"],
-    "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/", r"/cat[eé]gories?/", r"/produkte[n]?/", r"/products?/", r"/produits?/"],
-    "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/", r"/product[-_]?categories?/", r"/cat[eé]gorie[-_]?produit[s]?"],
-    "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/", r"/recette[s]?[-_]?cat[eé]gorie[s]?/"],
-    "Service kategorie": [r"/dienstleistungen?/,", r"/services?/", r"/prestations?[-_]?de?[-_]?service/"],
-    "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search", r"/recherche"],
-    "Produktdetailseite": [r"/produkt[e]?[-/]?\\w+", r"/product[-/]?\\w+", r"/produit[-/]?\\w+"],
-    "Rezeptdetailseite": [r"/rezept[-/]?\\w+", r"/recette[-/]?\\w+"],
-    "Serviceseite": [r"/service[-/]?\\w+", r"/dienstleistung[-/]?\\w+", r"/prestation[-/]?\\w+"],
-    "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/,", r"/emplois?/,", r"/karriere/"],
-    "Kontaktseite": [r"/kontakt", r"/contact", r"/nous[-_]?contacter", r"/contactez[-_]?nous"],
-    "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/", r"/événements?/"],
-    "Teamseite": [r"/team", r"/ueber-uns/team", r"/equipe"],
-    "Karriereseite": [r"/karriere", r"/careers?", r"/emplois?[-_]?chez[-_]?nous"],
-    "Glossarseite": [r"/glossar", r"/lexikon", r"/glossaire", r"/glossary"],
-    "Newsletter": [r"/newsletter", r"/newsletters", r"/lettre[-_]?d[-_]?information"],
-    "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/à[-_]?propos"],
-    "Standort": [r"/standort", r"/filiale", r"/location[s]?", r"/magasin"],
-    "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions", r"/conditions[-_]?g[eé]n[eé]rales"],
-    "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber", r"/faq", r"/wissen", r"/conseils", r"/article", r"/magazine"],
-    "Newsbeitrag": [r"/news", r"/neuigkeiten", r"/actualit[eé]s", r"/press(e|room)"],
-    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/", r"/dossiers?/,", r"/welten/"]
+    "Kategorieseite": [r"/kategorie[n]?/", r"/categories?/"] ,
+    "Produktkategorie": [r"/produkt[-_]?kategorie[n]?/"],
+    "Rezeptkategorie": [r"/rezept[-_]?kategorie[n]?/"],
+    "Service kategorie": [r"/dienstleistungen?/", r"/services?/"],
+    "Suchergebnisseite": [r"[?&](q|s|search|query|recherche)=", r"/suche", r"/search"],
+    "Produktdetailseite": [r"/produkt[e]?[-/]?\w+"],
+    "Rezeptdetailseite": [r"/rezept[-/]?\w+"],
+    "Serviceseite": [r"/service[-/]?\w+", r"/dienstleistung[-/]?\w+"],
+    "Stellenanzeige": [r"/job[s]?[-/]?", r"/stellenangebote?/"],
+    "Kontaktseite": [r"/kontakt", r"/contact"],
+    "Eventseite": [r"/event[s]?[-/]?", r"/veranstaltungen?/"],
+    "Teamseite": [r"/team"],
+    "Karriereseite": [r"/karriere", r"/careers?"],
+    "Glossarseite": [r"/glossar", r"/lexikon"],
+    "Newsletter": [r"/newsletter"],
+    "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us"],
+    "Standort": [r"/standort", r"/filiale", r"/location[s]?"],
+    "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions"],
+    "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber"],
+    "Newsbeitrag": [r"/news", r"/neuigkeiten"],
+    "Sonstige Kategorie": [r"/themen/", r"/focus/", r"/special[s]?/"]
 }
 
 CONTENT_RELEVANT_TYPES = [
     "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
+
 # GPT-Klassifikation für Ebene 2
 
 def gpt_classify_subtype(url, title, desc, body):
@@ -131,10 +134,6 @@ Pressemitteilung, News & Updates, Glossarartikel, Sonstige, Unklar
         ]
     )
     return response.choices[0].message.content.strip()
-
-def is_homepage(url):
-    path = re.sub(r'^https?:\/\/[^\/]+', '', url).strip().lower()
-    return bool(re.match(r'^\/([a-z]{2,3}(?:-[a-z]{2,3})?)?\/?$', path))
 
 def fetch_html(url):
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -201,27 +200,27 @@ status_text = st.empty()
 total = len(urls)
 
 for i, url in enumerate(urls):
-    status_text.text(f"🔍 Analysiere URL {i+1} von {total}: {url}")
+    status_text.text(f"\U0001F50D Analysiere URL {i+1} von {total}: {url}")
     try:
-            html, final_url = fetch_html(url)
-            data = extract_structured_data(html, final_url)
-            typ = classify_by_markup(data) or classify_by_url(final_url)
+        html, final_url = fetch_html(url)
+        data = extract_structured_data(html, final_url)
+        typ = classify_by_markup(data) or classify_by_url(final_url)
 
-            title, desc = extract_meta(html)
-            body = extract_main_text(html)
+        title, desc = extract_meta(html)
+        body = extract_main_text(html)
 
-            if not typ:
-                typ = gpt_classify(final_url, title, desc, body, data)
+        if not typ:
+            typ = gpt_classify(final_url, title, desc, body, data)
 
-            if typ in CONTENT_RELEVANT_TYPES:
-                subtype = gpt_classify_subtype(final_url, title, desc, body)
-            else:
-                subtype = ""
+        if typ in CONTENT_RELEVANT_TYPES:
+            subtype = gpt_classify_subtype(final_url, title, desc, body)
+        else:
+            subtype = ""
 
-            results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
+        results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
 
     except Exception as e:
-            results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
+        results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
 
 # --- Ergebnis anzeigen ---
 df = pd.DataFrame(results)
@@ -229,5 +228,4 @@ st.success("✅ Analyse abgeschlossen")
 st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
-st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
-
+st.download_button("\U0001F4C5 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
