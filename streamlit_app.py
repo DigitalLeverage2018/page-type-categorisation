@@ -51,17 +51,25 @@ elif input_mode == "Sitemap URL":
             st.error(f"Fehler beim Abrufen der Sitemap: {e}")
         return collected_urls
 
-    if sitemap_url:
-        urls = get_urls_from_sitemap(sitemap_url)
-        if exclude_dirs:
-            excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
-            urls = [u for u in urls if not any(x in u for x in excludes)]
-        if include_dirs:
-            includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
-            urls = [u for u in urls if any(x in u for x in includes)]
+if sitemap_url:
+    raw_urls = get_urls_from_sitemap(sitemap_url)
+    excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
+    includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
 
-if not urls:
-    st.stop()
+    if includes:
+        raw_urls = [u for u in raw_urls if any(x in u for x in includes)]
+    if excludes:
+        raw_urls = [u for u in raw_urls if not any(x in u for x in excludes)]
+
+    urls = raw_urls
+
+if urls:
+    if st.button("🚀 Analyse starten"):
+        # restlicher Analyse-Code beginnt hier (ab results = [])
+        ...
+else:
+    st.info("Bitte gib eine gültige Eingabe an, um URLs zu analysieren.")
+
 
 # --- Button zum Starten der Analyse ---
 if not st.button("🚀 Analyse starten"):
