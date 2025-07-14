@@ -10,6 +10,16 @@ from bs4 import BeautifulSoup
 import re
 import json
 
+# 🔑 OpenAI API Key abfragen
+st.title("🔍 Seitentyp-Kategorisierung")
+
+api_key = st.text_input("🔑 OpenAI API Key", type="password")
+if not api_key:
+    st.warning("Bitte gib deinen OpenAI API Key ein.")
+    st.stop()  # stoppt das Skript, bis der Key da ist
+
+openai.api_key = api_key
+
 # Mapping strukturierte Daten → Seitentyp
 MARKUP_TYPE_TO_SEITENTYP = {
     "Recipe": "Rezeptseite",
