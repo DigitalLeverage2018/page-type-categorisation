@@ -47,26 +47,45 @@ elif input_mode == "Sitemap URL":
 
     import xml.etree.ElementTree as ET
 
-def get_urls_from_sitemap(url):
-    collected_urls = []
-    try:
-        res = requests.get(url, timeout=10)
-        res.raise_for_status()
-        root = ET.fromstring(res.content)
-        namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
-        if root.tag.endswith("sitemapindex"):
-            for sitemap in root.findall("ns:sitemap", namespace):
-                loc = sitemap.find("ns:loc", namespace)
-                if loc is not None and loc.text:
-                    collected_urls.extend(get_urls_from_sitemap(loc.text))
+elif input_mode == "Sitemap URL":
+    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
+
+    def get_urls_from_sitemap(url):
+        collected_urls = []
+        try:
+            res = requests.get(url, timeout=10)
+            res.raise_for_status()
+            root = ET.fromstring(res.content)
+            namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+            if root.tag.endswith("sitemapindex"):
+                for sitemap in root.findall("ns:sitemap", namespace):
+                    loc = sitemap.find("ns:loc", namespace)
+                    if loc is not None and loc.text:
+                        collected_urls.extend(get_urls_from_sitemap(loc.text))
+            else:
+                for url_elem in root.findall("ns:url", namespace):
+                    loc = url_elem.find("ns:loc", namespace)
+                    if loc is not None and loc.text:
+                        collected_urls.append(loc.text)
+        except Exception as e:
+            st.error(f"Fehler beim Abrufen der Sitemap: {e}")
+        return collected_urls
+
+    if st.button("🚀 Analyse starten"):
+        if sitemap_url:
+            urls = get_urls_from_sitemap(sitemap_url)
+            if exclude_dirs:
+                excludes = [e.strip() for e in exclude_dirs.splitlines() if e.strip()]
+                urls = [u for u in urls if not any(x in u for x in excludes)]
+            if include_dirs:
+                includes = [i.strip() for i in include_dirs.splitlines() if i.strip()]
+                urls = [u for u in urls if any(x in u for x in includes)]
+            st.session_state.urls = urls
+            st.session_state.start_analysis = True
         else:
-            for url_elem in root.findall("ns:url", namespace):
-                loc = url_elem.find("ns:loc", namespace)
-                if loc is not None and loc.text:
-                    collected_urls.append(loc.text)
-    except Exception as e:
-        st.error(f"Fehler beim Abrufen der Sitemap: {e}")
-    return collected_urls
+            st.warning("Bitte gib eine gültige Sitemap-URL ein.")
 
 
 # --- Stopp, wenn Analyse nicht gestartet ---
