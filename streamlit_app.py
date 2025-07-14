@@ -1,5 +1,3 @@
-# main.py
-
 import streamlit as st
 import pandas as pd
 import openai
@@ -10,17 +8,37 @@ from bs4 import BeautifulSoup
 import re
 import json
 
-# 🔑 OpenAI API Key abfragen
+# -------------------------
+# UI-Elemente
+# -------------------------
 st.title("🔍 Seitentyp-Kategorisierung")
 
 api_key = st.text_input("🔑 OpenAI API Key", type="password")
 if not api_key:
     st.warning("Bitte gib deinen OpenAI API Key ein.")
-    st.stop()  # stoppt das Skript, bis der Key da ist
-
+    st.stop()
 openai.api_key = api_key
 
-# Mapping strukturierte Daten → Seitentyp
+input_mode = st.radio("📥 URLs eingeben oder Datei hochladen?", ["Manuelle Eingabe", "CSV-Datei"])
+
+urls = []
+
+if input_mode == "Manuelle Eingabe":
+    input_urls = st.text_area("📄 Füge hier die URLs ein (eine pro Zeile):")
+    if input_urls.strip():
+        urls = [url.strip() for url in input_urls.strip().splitlines() if url.strip()]
+elif input_mode == "CSV-Datei":
+    uploaded_file = st.file_uploader("📄 Lade eine CSV-Datei mit URLs hoch (Spalte A ab A2)", type=["csv"])
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        urls = df.iloc[1:, 0].dropna().tolist()  # Ab Zeile 2, Spalte A
+
+if not urls:
+    st.stop()
+
+# -------------------------
+# Mapping strukturierter Daten & URL-Muster
+# -------------------------
 MARKUP_TYPE_TO_SEITENTYP = {
     "Recipe": "Rezeptseite",
     "Product": "Produktdetailseite",
@@ -30,7 +48,7 @@ MARKUP_TYPE_TO_SEITENTYP = {
     "FAQPage": "Blog/Artikel",
     "HowTo": "Blog/Artikel",
     "Event": "Eventseite",
-    "JobPosting": "Jobdetailseite",
+    "JobPosting": "Stellenanzeige",
     "SearchResultsPage": "Suchergebnisseite",
     "CollectionPage": "Kategorieseite",
     "ContactPage": "Kontaktseite"
@@ -41,7 +59,7 @@ URL_PATTERNS = {
     "Produktdetailseite": ["produkt", "produit", "product", "item", "angebote", "offers"],
     "Kategorieseite": ["kategorie", "categorie", "category", "produkte", "produits", "shop", "boutique", "magasin"],
     "Suchergebnisseite": ["suche", "recherche", "search", "s=", "q=", "query"],
-    "Jobdetailseite": ["job", "stelle", "emploi", "poste", "career", "position"],
+    "Stellenanzeige": ["job", "stelle", "emploi", "poste", "career", "position"],
     "Kontaktseite": ["kontakt", "contact", "support", "hilfe", "aide", "assistance"],
     "Eventseite": ["event", "veranstaltung", "evenement", "manifestation", "webinar", "kalender", "calendrier"],
     "Teamseite": ["team"],
@@ -53,12 +71,6 @@ URL_PATTERNS = {
     "Standortseite / Filialseite": ["standort", "filiale", "location", "store-locator"],
     "Blog/Artikel": ["blog", "artikel", "article", "ratgeber", "guide", "tips", "conseils", "faq", "how-to", "wissen", "news", "actualites", "updates"]
 }
-
-
-# 🔑 API-Key eingeben
-st.title("🔍 Seitentyp-Klassifikation")
-api_key = st.text_input("🔑 OpenAI API Key", type="password")
-user_input_urls = st.text_area("🔗 URLs (eine pro Zeile einfügen):")
 
 def is_homepage(url):
     path = re.sub(r'^https?:\/\/[^\/]+', '', url).strip().lower()
@@ -110,29 +122,26 @@ def gpt_classify(url, title, description, body_text, structured_data):
 URL: {url}
 Title: {title}
 Description: {description}
-Strukturierte Daten: {structured_data}
+Strukturierte Daten: {json.dumps(structured_data)}
 Body (Auszug): {body_text}
 """
-    system_prompt = "Bitte bestimme anhand der folgenden Informationen, welcher dieser Seitentypen auf die Seite zutrifft. Wähle den **passendsten** aus dieser Liste und **verwende ihn exakt so, wie angegeben** (ohne Abwandlungen, Ergänzungen oder Varianten): Startseite, Sprachstartseite, Blog/Artikel, Glossarseite, Produktdetailseite, Kategorieseite, Rezeptseite, Eventseite, Stellenanzeige, Karriereübersicht, Über uns, Kontaktseite, Teamseite, Standortseite / Filialseite, Downloadseite / Whitepaper, Newsletter-Landingpage, 404 / Fehlerseite. Wenn **keiner dieser Typen auch nur annähernd passt**, darfst du **eine neue, sinnvolle Kategorie vorschlagen** – gib dann **nur die neue Kategorie als Antwort aus** (ohne Erklärung oder Mischform)."
+    system_prompt = "Bitte bestimme anhand der folgenden Informationen, welcher dieser Seitentypen auf die Seite zutrifft. Wähle den **passendsten** aus dieser Liste und **verwende ihn exakt so, wie angegeben** (ohne Abwandlungen oder Varianten): Startseite, Sprachstartseite, Blog/Artikel, Glossarseite, Produktdetailseite, Kategorieseite, Rezeptseite, Eventseite, Stellenanzeige, Karriereübersicht, Über uns, Kontaktseite, Teamseite, Standortseite / Filialseite, Downloadseite / Whitepaper, Newsletter-Landingpage, 404 / Fehlerseite. Wenn **keiner dieser Typen auch nur annähernd passt**, darfst du **eine neue, sinnvolle Kategorie vorschlagen** – gib dann **nur die neue Kategorie als Antwort aus**."
 
-    response = openai.chat.completions.create(
+    response = openai.ChatCompletion.create(
         model="gpt-4o",
-        api_key=api_key,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input}
         ]
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message["content"].strip()
 
-
-# ▶️ Hauptfunktion
-if st.button("🚀 Analyse starten") and api_key and user_input_urls:
-    urls = [u.strip() for u in user_input_urls.splitlines() if u.strip()]
-    results = []
-
+# -------------------------
+# Analyse ausführen
+# -------------------------
+results = []
+with st.spinner("🔍 URLs werden analysiert..."):
     for url in urls:
-        st.write(f"🔎 Analysiere: {url}")
         try:
             html, final_url = fetch_html(url)
             data = extract_structured_data(html, final_url)
@@ -144,16 +153,15 @@ if st.button("🚀 Analyse starten") and api_key and user_input_urls:
                 typ = gpt_classify(final_url, title, desc, body, data)
 
             results.append({"URL": final_url, "Seitentyp": typ})
-
         except Exception as e:
-            st.error(f"⚠️ Fehler bei {url}: {e}")
-            results.append({"URL": url, "Seitentyp": "Fehler"})
+            results.append({"URL": url, "Seitentyp": f"Fehler: {e}"})
 
-    df_out = pd.DataFrame(results)
-    st.success("✅ Analyse abgeschlossen")
-    st.dataframe(df_out)
-    csv = df_out.to_csv(index=False).encode("utf-8")
-    st.download_button("📥 CSV herunterladen", data=csv, file_name="seitentyp-analyse.csv", mime="text/csv")
+# -------------------------
+# Ergebnis anzeigen & Download
+# -------------------------
+df_out = pd.DataFrame(results)
+st.success("✅ Analyse abgeschlossen")
+st.dataframe(df_out)
 
-
-
+csv = df_out.to_csv(index=False).encode("utf-8")
+st.download_button("📥 Ergebnisse als CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
