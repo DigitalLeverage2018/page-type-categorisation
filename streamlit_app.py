@@ -60,7 +60,7 @@ HAUPTTYP_REGEX = {
     "Karriereseite": [r"/karriere", r"/careers?", r"/emplois?[-_]?chez[-_]?nous"],
     "Glossarseite": [r"/glossar", r"/lexikon", r"/glossaire", r"/glossary"],
     "Newsletter": [r"/newsletter", r"/newsletters", r"/lettre[-_]?d[-_]?information"],
-    "Über uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/\u00e0[-_]?propos"],
+    "\u00dcber uns": [r"/ueber[-_]?uns", r"/about[-_]?us", r"/\u00e0[-_]?propos"],
     "Standort": [r"/standort", r"/filiale", r"/location[s]?", r"/magasin"],
     "AGB": [r"/agb", r"/terms[-_]?and[-_]?conditions", r"/conditions[-_]?g[eé]n[eé]rales"],
     "Blog/Artikel": [r"/blog", r"/artikel", r"/post", r"/ratgeber", r"/faq", r"/wissen", r"/conseils", r"/article", r"/magazine"],
@@ -72,6 +72,31 @@ CONTENT_RELEVANT_TYPES = [
     "Blog/Artikel", "Newsbeitrag", "Kategorieseite", "Produktdetailseite",
     "Produktkategorie", "Service kategorie", "Serviceseite", "Sonstige Kategorie"
 ]
+
+# GPT-Klassifikation für Ebene 2
+
+def gpt_classify_subtype(url, title, desc, body):
+    user_input = f"""
+URL: {url}
+Title: {title}
+Description: {desc}
+Body (Auszug): {body}
+"""
+    system_prompt = """
+Bitte bestimme die zutreffende Unterkategorie aus dieser Liste und gib **nur die Unterkategorie als Antwort** zurück:
+
+PLC-Pain Points, PLC-Kosten, PLC-How-Tos, PLC-Tools & Templates, PLC-Buyer’s Guides, PLC-Alternativen, PLC-Vergleiche, PLC-Listicles, PLC-Case Studies, PLC-Checklisten,
+TLC-Opinion Piece, TLC-Industry Insight, TLC-Expert Voice, TLC-Personal Story, TLC-Data Insight, TLC-Essay,
+Pressemitteilung, News & Updates, Glossarartikel, Sonstige, Unklar
+"""
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+    )
+    return response.choices[0].message.content.strip()
 
 def is_homepage(url):
     path = re.sub(r'^https?:\/\/[^\/]+', '', url).strip().lower()
@@ -145,14 +170,21 @@ with st.spinner("🔍 Analysiere Seiten..."):
             data = extract_structured_data(html, final_url)
             typ = classify_by_markup(data) or classify_by_url(final_url)
 
+            title, desc = extract_meta(html)
+            body = extract_main_text(html)
+
             if not typ:
-                title, desc = extract_meta(html)
-                body = extract_main_text(html)
                 typ = gpt_classify(final_url, title, desc, body, data)
 
-            results.append({"URL": final_url, "Seitentyp": typ})
+            if typ in CONTENT_RELEVANT_TYPES:
+                subtype = gpt_classify_subtype(final_url, title, desc, body)
+            else:
+                subtype = ""
+
+            results.append({"URL": final_url, "Hauptkategorie": typ, "Unterkategorie": subtype})
+
         except Exception as e:
-            results.append({"URL": url, "Seitentyp": f"Fehler: {e}"})
+            results.append({"URL": url, "Hauptkategorie": f"Fehler: {e}", "Unterkategorie": ""})
 
 # --- Ergebnis anzeigen ---
 df = pd.DataFrame(results)
