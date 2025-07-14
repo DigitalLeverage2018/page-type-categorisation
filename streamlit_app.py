@@ -167,8 +167,13 @@ Body (Auszug): {body}
 
 # --- Analyse starten ---
 results = []
-with st.spinner("🔍 Analysiere Seiten..."):
-    for url in urls:
+progress_bar = st.progress(0)
+status_text = st.empty()
+total = len(urls)
+
+for i, url in enumerate(urls):
+    status_text.text(f"🔍 Analysiere ({i+1}/{total}): {url}")
+    progress_bar.progress((i + 1) / total)
         try:
             html, final_url = fetch_html(url)
             data = extract_structured_data(html, final_url)
