@@ -172,8 +172,9 @@ status_text = st.empty()
 total = len(urls)
 
 for i, url in enumerate(urls):
-    status_text.text(f"🔍 Analysiere ({i+1}/{total}): {url}")
-    progress_bar.progress((i + 1) / total)
+    try:
+        status_text.text(f"🔍 Analysiere ({i+1}/{total}): {url}")
+        progress_bar.progress((i + 1) / total)
         try:
             html, final_url = fetch_html(url)
             data = extract_structured_data(html, final_url)
@@ -202,4 +203,5 @@ st.dataframe(df)
 
 csv = df.to_csv(index=False).encode("utf-8")
 st.download_button("📅 CSV herunterladen", csv, "seitentyp-analyse.csv", "text/csv")
+
 
