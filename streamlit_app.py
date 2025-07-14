@@ -57,6 +57,11 @@ elif input_mode == "Sitemap URL":
     exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
     include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
 
+    elif input_mode == "Sitemap URL":
+    sitemap_url = st.text_input("🌐 Sitemap- oder Sitemap-Index-URL eingeben")
+    exclude_dirs = st.text_area("🚫 Verzeichnisse ausschließen (ein Verzeichnis pro Zeile)", value="")
+    include_dirs = st.text_area("✅ Nur diese Verzeichnisse einschließen (optional)", value="")
+
     def get_urls_from_sitemap(url):
         collected_urls = []
         try:
