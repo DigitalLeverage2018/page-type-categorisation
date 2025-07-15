@@ -27,8 +27,7 @@ st.title("🔍 Seiten Typ kategorisieren")
 with st.expander("ℹ️ Was macht dieses Tool?", expanded=True):
     st.markdown(
         """
-        Dieses Tool analysiert Webseiten-URLs und erkennt automatisch den Seitentyp anhand von URL-Mustern, strukturierten Daten und Inhaltsauszügen.
-        Zusätzlich wird eine Unterkategorie für Content-Seiten mithilfe von GPT bestimmt.
+        Dieses Tool analysiert Webseiten-URLs und erkennt automatisch den Seitentyp anhand von URL-Mustern, strukturierten Daten und KI.Für jede URL wird eine Hauptkategorie und ggf. eine Unterkategorie erstellt.
         """
     )
 
