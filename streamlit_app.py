@@ -8,18 +8,6 @@ from bs4 import BeautifulSoup
 import json
 import re
 
-
-
-import streamlit as st
-import pandas as pd
-import requests
-import openai
-import extruct
-import trafilatura
-from bs4 import BeautifulSoup
-import json
-import re
-
 # --- Titel & Callout ---
 st.set_page_config(page_title="Seiten Typ kategorisieren", layout="wide")
 st.title("Seiten Typ kategorisieren")
