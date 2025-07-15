@@ -40,6 +40,7 @@ elif input_mode == "CSV hochladen":
     if st.button("🚀 Analyse starten"):
         st.session_state.start_analysis = True
 
+
 # --- Stopp, wenn Analyse nicht gestartet ---
 if not st.session_state.start_analysis or not st.session_state.urls:
     st.stop()
