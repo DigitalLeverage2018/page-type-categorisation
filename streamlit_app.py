@@ -8,37 +8,69 @@ from bs4 import BeautifulSoup
 import json
 import re
 
-# --- OpenAI Key ---
-api_key = st.text_input("🔑 OpenAI API Key", type="password")
+
+
+import streamlit as st
+import pandas as pd
+import requests
+import openai
+import extruct
+import trafilatura
+from bs4 import BeautifulSoup
+import json
+import re
+
+# --- Titel & Callout ---
+st.set_page_config(page_title="Seiten Typ kategorisieren", layout="wide")
+st.title("🔍 Seiten Typ kategorisieren")
+
+with st.expander("ℹ️ Was macht dieses Tool?", expanded=True):
+    st.markdown(
+        """
+        Dieses Tool analysiert Webseiten-URLs und erkennt automatisch den Seitentyp anhand von URL-Mustern, strukturierten Daten und Inhaltsauszügen.
+        Zusätzlich wird eine Unterkategorie für Content-Seiten mithilfe von GPT bestimmt.
+        """
+    )
+
+# --- OpenAI API Key ---
+st.subheader("🔑 OpenAI API Key")
+api_key = st.text_input("Bitte gib deinen API Key ein", type="password")
+st.markdown("[💡 API-Key generieren](https://platform.openai.com/api-keys)", unsafe_allow_html=True)
+
 if not api_key:
     st.warning("Bitte gib deinen OpenAI API Key ein.")
     st.stop()
 client = openai.OpenAI(api_key=api_key)
 
-# --- Session State vorbereiten ---
-if "urls" not in st.session_state:
-    st.session_state.urls = []
-if "start_analysis" not in st.session_state:
-    st.session_state.start_analysis = False
+# --- Eingabe URLs ---
+st.subheader("📥 URLs eingeben")
 
-# --- UI: URL-Eingabe ---
-st.title("🔍 Seitentyp-Kategorisierung")
-input_mode = st.radio("📥 URLs eingeben oder CSV hochladen?", ["Manuell eingeben", "CSV hochladen"])
+input_text = st.text_area("✏️ URLs (eine pro Zeile eingeben)", height=150)
+file = st.file_uploader("Oder lade eine CSV-Datei mit URLs hoch (Spalte A, ab Zeile 2)", type=["csv"])
 
-if input_mode == "Manuell eingeben":
-    input_text = st.text_area("✏️ Gib die URLs ein (eine pro Zeile)")
-    if input_text:
-        st.session_state.urls = [url.strip() for url in input_text.splitlines() if url.strip()]
-    if st.button("🚀 Analyse starten"):
-        st.session_state.start_analysis = True
+urls = []
+if input_text:
+    urls = [url.strip() for url in input_text.splitlines() if url.strip()]
+elif file:
+    df = pd.read_csv(file)
+    urls = df.iloc[1:, 0].dropna().tolist()
 
-elif input_mode == "CSV hochladen":
-    file = st.file_uploader("📄 CSV mit URLs hochladen (Spalte A ab Zeile 2)", type=["csv"])
-    if file:
-        df = pd.read_csv(file)
-        st.session_state.urls = df.iloc[1:, 0].dropna().tolist()
-    if st.button("🚀 Analyse starten"):
-        st.session_state.start_analysis = True
+if urls:
+    st.session_state.urls = urls
+
+# --- Analyse starten Button ---
+if st.button("🚀 Analyse starten"):
+    st.session_state.start_analysis = True
+
+# --- Analyse stoppen, wenn keine URLs oder Button nicht gedrückt ---
+if "start_analysis" not in st.session_state or not st.session_state.start_analysis:
+    st.stop()
+if "urls" not in st.session_state or not st.session_state.urls:
+    st.warning("❗ Bitte gib mindestens eine gültige URL ein.")
+    st.stop()
+
+urls = st.session_state.urls
+
 
 
 # --- Stopp, wenn Analyse nicht gestartet ---
