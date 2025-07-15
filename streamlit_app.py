@@ -22,12 +22,15 @@ import re
 
 # --- Titel & Callout ---
 st.set_page_config(page_title="Seiten Typ kategorisieren", layout="wide")
-st.title("🔍 Seiten Typ kategorisieren")
+st.title("Seiten Typ kategorisieren")
 
 with st.expander("ℹ️ Was macht dieses Tool?", expanded=True):
     st.markdown(
         """
         Dieses Tool analysiert Webseiten-URLs und erkennt automatisch den Seitentyp anhand von URL-Mustern, strukturierten Daten und KI.Für jede URL wird eine Hauptkategorie und ggf. eine Unterkategorie erstellt.
+
+**Wichtig:** Das Tool ist KI-basiert und kann falsche Klassifizierungen vornehmen. Kontrolliere die Resultate deshalb stets sorgfältig.
+
         """
     )
 
